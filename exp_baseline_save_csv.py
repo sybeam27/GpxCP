@@ -1,4 +1,4 @@
-# exp_baseline.py
+# exp_baseline_save_csv.py
 
 import os
 import numpy as np
@@ -6,6 +6,7 @@ import time
 import pandas as pd
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
+from datetime import datetime
 
 from utils.data import build_adjacency, graph_density, build_bipartite_graph, load_dataset
 from utils.graphex import estimate_graphex_prob, generate_bipartite_graphex
@@ -32,8 +33,8 @@ n_iter = 2000
 n_sample = 10
 bandwidth = 0.05
 
-alpha = 0.05 # 0.05
-data = 'real'   # or 'syn'
+alpha = 0.1 # 0.05
+data = 'syn'   # or 'syn'
 T_lst = [100, 500, 1000, 5000]
 
 def prepare_datasets():
@@ -140,7 +141,7 @@ def prepare_datasets():
         return A_dict, prob_matrix_dict
 
 def run_experiments(A_dict):
-    os.makedirs(".results", exist_ok=True)
+    all_results_list = []
 
     for key in tqdm(A_dict, desc="Datasets"):
         A = A_dict[key]
@@ -187,24 +188,40 @@ def run_experiments(A_dict):
             res = evaluate_ci_extended(deg_u[test_idx], lower, upper, alpha=alpha)
             # PICP, MPIW 평가 추가
             extra = evaluate_picp_mpiw(deg_u[test_idx], lower, upper)
-
-            # 합치기
             res.update(extra)
-            res["time"] = timings[mname]
-            res["alpha"] = alpha
-            res["dataset"] = key
-            results_all[mname] = res
+
+            # --- 요청된 형식으로 결과 저장 ---
+            record = {
+                'dataset': key,
+                'model': mname,
+                'picp': res['picp'],
+                'mpiw': res['mpiw'],
+                'IScore': res['interval_score'],
+                'Time': timings[mname]
+            }
+            all_results_list.append(record)
 
             print(f"{mname:12s} | {res['coverage']:6.4f} | {res['avg_width']:8.4f} | "
                   f"{res['niw']:8.4f} | {res['interval_score']:8.4f} | "
-                  f"{res['picp']:6.4f} | {res['mpiw']:8.4f} | {res['time']:8.4f}")
+                  f"{res['picp']:6.4f} | {res['mpiw']:8.4f} | {timings[mname]:8.4f}")
 
-        # Save results to CSV
-        df = pd.DataFrame.from_dict(results_all, orient="index")
-        df.index.name = "method"
-        out_path = f".results/results_{key}.csv"
-        df.to_csv(out_path)
-        print(f"[INFO] Saved results to {out_path}")
+    # --- 모든 실험 결과를 단일 CSV 파일로 저장 ---
+    # 결과 리스트를 DataFrame으로 변환
+    final_df = pd.DataFrame(all_results_list)
+    
+    # 데이터셋과 모델을 인덱스로 설정
+    final_df.set_index(['dataset', 'model'], inplace=True)
+
+    # 저장 경로 및 파일명 설정
+    save_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_dir = './result'
+    os.makedirs(output_dir, exist_ok=True)
+    
+    file_path = f"{output_dir}/alpha{alpha}_{save_time}.csv"
+
+    # DataFrame을 CSV로 저장
+    final_df.to_csv(file_path)
+    print(f"\n[INFO] 모든 실험 결과를 다음 경로에 저장했습니다: {file_path}")
 
 def main():
     A_dict, _ = prepare_datasets()

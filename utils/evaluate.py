@@ -57,6 +57,47 @@ def evaluate_ci_extended(true_vals, lower, upper, alpha=0.1, clip=True):
 
     return results
 
+def evaluate_picp_mpiw(true_vals, lower, upper, clip=True):
+    """
+    Compute PICP (Prediction Interval Coverage Probability)
+    and MPIW (Mean Prediction Interval Width).
+    
+    Parameters
+    ----------
+    true_vals : array-like
+        실제 값 (y)
+    lower : array-like
+        예측 구간 하한
+    upper : array-like
+        예측 구간 상한
+    clip : bool (default=True)
+        lower/upper를 [0,1] 구간에 클리핑할지 여부 (옵션)
+    
+    Returns
+    -------
+    results : dict
+        - picp: Coverage probability
+        - mpiw: 평균 interval width
+        - covered: 각 샘플이 구간에 포함됐는지 여부 (True/False)
+        - widths: 각 샘플별 interval 폭
+    """
+    if clip:
+        lower = np.clip(lower, 0, 1)
+        upper = np.clip(upper, 0, 1)
+
+    covered = (true_vals >= lower) & (true_vals <= upper)
+    picp = covered.mean()   # coverage probability
+    widths = upper - lower
+    mpiw = widths.mean()
+
+    results = {
+        "picp": picp,
+        "mpiw": mpiw,
+        "covered": covered,
+        "widths": widths
+    }
+    return results
+
 def plot_width_distribution(widths, name="Dataset"):
     # Interval Width Distribution
     plt.figure(figsize=(6,4))
